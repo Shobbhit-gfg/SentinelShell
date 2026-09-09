@@ -51,11 +51,6 @@ def init_db():
                 "name": "HexToIP CodeBeautify",
                 "type": "url",
                 "value": "https://codebeautify.org/hex-to-ip-converter"
-            },
-            {
-                "name": "Terminal",
-                "type": "terminal",
-                "value": ""
             }
         ]
         default_commands = ["ping 8.8.8.8", "ipconfig", "ifconfig"]
