@@ -207,45 +207,77 @@ async def get_clients():
 async def admin_dashboard():
     return """<!DOCTYPE html>
     <html lang="en">
-    <head><meta charset="UTF-8"><title>SentinelShell Fleet Admin</title><script src="https://cdn.tailwindcss.com"></script></head>
-    <body class="bg-gray-900 text-gray-100 font-sans min-h-screen p-8">
+    <head>
+        <meta charset="UTF-8">
+        <title>SentinelShell Fleet Admin</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+        <style>
+            body { font-family: 'Inter', sans-serif; }
+            .font-mono { font-family: 'JetBrains Mono', monospace; }
+        </style>
+    </head>
+    <body class="bg-zinc-950 text-zinc-100 min-h-screen p-8 selection:bg-emerald-500 selection:text-zinc-950">
         <div class="max-w-6xl mx-auto space-y-8">
-            <header class="flex justify-between items-center border-b border-gray-800 pb-4">
-                <h1 class="text-2xl font-bold tracking-tight text-emerald-400">SentinelShell Fleet Management</h1>
-                <div class="flex items-center space-x-3">
-                    <label class="text-sm text-gray-400">Target Client:</label>
-                    <select id="client-select" onchange="loadClientData()" class="bg-gray-800 border border-gray-700 text-emerald-300 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none"></select>
-                    <button id="ban-btn" onclick="toggleBanStatus()" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition"></button>
+            <header class="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-zinc-800 pb-5 gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight text-emerald-400 flex items-center gap-2">
+                        <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        SentinelShell Fleet Management
+                    </h1>
+                    <p class="text-xs text-zinc-400 mt-1">Real-time kiosk terminal oversight & remote configuration sync</p>
+                </div>
+                <div class="flex items-center space-x-3 bg-zinc-900/80 border border-zinc-800 p-2 rounded-xl shadow-sm">
+                    <label class="text-xs font-medium text-zinc-400 pl-2">Target Client:</label>
+                    <select id="client-select" onchange="loadClientData()" class="bg-zinc-950 border border-zinc-700/80 text-emerald-400 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition"></select>
+                    <button id="ban-btn" onclick="toggleBanStatus()" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition shadow-sm"></button>
                 </div>
             </header>
-            <div class="bg-gray-800/50 border border-gray-800 p-6 rounded-xl shadow-lg">
-                <h2 id="form-title" class="text-lg font-semibold mb-4 text-gray-200">Configuration Editor</h2>
-                <form id="config-form" class="space-y-4">
+            
+            <div class="bg-zinc-900/60 border border-zinc-800/80 p-6 rounded-2xl shadow-xl backdrop-blur-sm">
+                <h2 id="form-title" class="text-base font-semibold mb-5 text-zinc-200 tracking-tight flex items-center gap-2">Configuration Editor</h2>
+                <form id="config-form" class="space-y-5">
                     <div>
-                        <label class="block text-sm font-medium text-gray-400 mb-1">Tabs Configuration (JSON Format)</label>
-                        <textarea id="tabs-json" rows="6" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 font-mono text-emerald-300"></textarea>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">Tabs Configuration (JSON Format)</label>
+                        <textarea id="tabs-json" rows="6" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-xs focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 font-mono text-emerald-300 transition leading-relaxed shadow-inner"></textarea>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-400 mb-1">Allowed Commands (one per line)</label>
-                        <textarea id="allowed-commands" rows="3" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 font-mono"></textarea>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">Allowed Commands (one per line)</label>
+                            <textarea id="allowed-commands" rows="3" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 text-xs focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 font-mono text-zinc-300 transition shadow-inner"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">Admin Password</label>
+                            <input type="text" id="admin-password" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-xs focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 font-mono text-zinc-300 transition shadow-inner">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-400 mb-1">Admin Password</label>
-                        <input type="text" id="admin-password" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500">
+                    <div class="flex items-center pt-2">
+                        <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-zinc-950 font-semibold px-6 py-2.5 rounded-xl text-xs transition shadow-lg shadow-emerald-950/50 active:scale-[0.98]">Save Client Configuration</button>
+                        <span id="save-status" class="ml-4 text-xs font-medium text-emerald-400 hidden flex items-center gap-1.5">✓ Saved successfully!</span>
                     </div>
-                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2.5 rounded-lg text-sm transition">Save Client Configuration</button>
-                    <span id="save-status" class="ml-3 text-sm text-emerald-400 hidden">Saved successfully!</span>
                 </form>
             </div>
-            <div class="bg-gray-800/50 border border-gray-800 p-6 rounded-xl shadow-lg">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-semibold text-gray-200">Fleet Security Logs</h2>
-                    <button onclick="fetchLogs()" class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg transition">Refresh Logs</button>
+            
+            <div class="bg-zinc-900/60 border border-zinc-800/80 p-6 rounded-2xl shadow-xl backdrop-blur-sm">
+                <div class="flex justify-between items-center mb-5">
+                    <h2 class="text-base font-semibold text-zinc-200 tracking-tight">Fleet Security Logs</h2>
+                    <button onclick="fetchLogs()" class="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-3.5 py-1.5 rounded-xl transition border border-zinc-700/50 shadow-sm">Refresh Logs</button>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-sm">
-                        <thead><tr class="border-b border-gray-700 text-gray-400"><th class="p-3">Timestamp</th><th class="p-3">Client ID</th><th class="p-3">Event Type</th><th class="p-3">Details</th></tr></thead>
-                        <tbody id="logs-table"><tr><td colspan="4" class="p-4 text-center text-gray-500">Loading logs...</td></tr></tbody>
+                <div class="overflow-x-auto rounded-xl border border-zinc-800/80 bg-zinc-950/50">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="border-b border-zinc-800 text-zinc-400 bg-zinc-900/40">
+                                <th class="p-3.5 font-semibold">Timestamp</th>
+                                <th class="p-3.5 font-semibold">Client ID</th>
+                                <th class="p-3.5 font-semibold">Event Type</th>
+                                <th class="p-3.5 font-semibold">Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table">
+                            <tr><td colspan="4" class="p-6 text-center text-zinc-500">Loading logs...</td></tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -275,10 +307,10 @@ async def admin_dashboard():
                 btn.style.display = 'inline-block';
                 const status = clientStatuses[clientId] || 'active';
                 if (status === 'banned') {
-                    btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-700 hover:bg-emerald-600 text-white transition";
+                    btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-zinc-950 transition shadow-sm";
                     btn.innerText = "Unban Client";
                 } else {
-                    btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-700 hover:bg-red-600 text-white transition";
+                    btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600/90 hover:bg-rose-500 text-white transition shadow-sm";
                     btn.innerText = "Ban Client";
                 }
             }
@@ -308,8 +340,8 @@ async def admin_dashboard():
                 const res = await fetch(`/api/logs?user_id=${clientId}`);
                 const logs = await res.json();
                 const tbody = document.getElementById('logs-table');
-                if (logs.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-500">No logs found.</td></tr>'; return; }
-                tbody.innerHTML = logs.map(log => `<tr class="border-b border-gray-800"><td class="p-3 text-xs text-gray-400">${log.timestamp}</td><td class="p-3 text-xs text-emerald-400">${log.user_id}</td><td class="p-3"><span class="bg-red-900/40 text-red-400 px-2 py-0.5 rounded text-xs">${log.event_type}</span></td><td class="p-3 text-xs text-gray-300 break-all">${log.details}</td></tr>`).join('');
+                if (logs.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="p-6 text-center text-zinc-500">No logs found.</td></tr>'; return; }
+                tbody.innerHTML = logs.map(log => `<tr class="border-b border-zinc-800/60 hover:bg-zinc-900/30 transition"><td class="p-3.5 font-mono text-[11px] text-zinc-400">${log.timestamp}</td><td class="p-3.5 font-mono text-[11px] text-emerald-400">${log.user_id}</td><td class="p-3.5"><span class="bg-rose-950/80 text-rose-400 border border-rose-800/50 px-2 py-0.5 rounded-md text-[10px] font-mono">${log.event_type}</span></td><td class="p-3.5 font-mono text-[11px] text-zinc-300 break-all">${log.details}</td></tr>`).join('');
             }
             document.getElementById('config-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
