@@ -53,11 +53,6 @@ def init_db():
                 "value": "https://codebeautify.org/hex-to-ip-converter"
             },
             {
-                "name": "Rulebook",
-                "type": "pdf",
-                "value": "Photography_and_Filming_Club_Rulebook.pdf"
-            },
-            {
                 "name": "Terminal",
                 "type": "terminal",
                 "value": ""
