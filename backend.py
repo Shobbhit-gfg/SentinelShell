@@ -51,6 +51,16 @@ def init_db():
                 "name": "HexToIP CodeBeautify",
                 "type": "url",
                 "value": "https://codebeautify.org/hex-to-ip-converter"
+            },
+            {
+                "name": "Rulebook",
+                "type": "pdf",
+                "value": "Photography_and_Filming_Club_Rulebook.pdf"
+            },
+            {
+                "name": "Terminal",
+                "type": "terminal",
+                "value": ""
             }
         ]
         default_commands = ["ping 8.8.8.8", "ipconfig", "ifconfig"]
@@ -122,16 +132,27 @@ async def get_config(user_id: str):
 async def update_config(user_id: str, new_config: ConfigUpdate):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute('''
-        INSERT OR REPLACE INTO configs (user_id, status, tabs, allowed_commands, admin_password)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (
-        user_id,
-        new_config.status,
-        json.dumps(new_config.tabs),
-        json.dumps(new_config.allowed_commands),
-        new_config.admin_password
-    ))
+    
+    if user_id == "ALL":
+        cursor.execute('''
+            UPDATE configs SET tabs = ?, allowed_commands = ?, admin_password = ?
+        ''', (
+            json.dumps(new_config.tabs),
+            json.dumps(new_config.allowed_commands),
+            new_config.admin_password
+        ))
+    else:
+        cursor.execute('''
+            INSERT OR REPLACE INTO configs (user_id, status, tabs, allowed_commands, admin_password)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (
+            user_id,
+            new_config.status,
+            json.dumps(new_config.tabs),
+            json.dumps(new_config.allowed_commands),
+            new_config.admin_password
+        ))
+        
     conn.commit()
     conn.close()
     return {"status": "success", "message": f"Configuration for {user_id} updated successfully"}
@@ -141,7 +162,10 @@ async def set_client_status(user_id: str, data: dict):
     new_status = data.get("status")
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("UPDATE configs SET status = ? WHERE user_id = ?", (new_status, user_id))
+    if user_id == "ALL":
+        cursor.execute("UPDATE configs SET status = ?", (new_status,))
+    else:
+        cursor.execute("UPDATE configs SET status = ? WHERE user_id = ?", (new_status, user_id))
     conn.commit()
     conn.close()
     return {"status": "success", "client": user_id, "new_status": new_status}
@@ -232,15 +256,24 @@ async def admin_dashboard():
                 const res = await fetch('/api/clients');
                 const clients = await res.json();
                 const select = document.getElementById('client-select');
-                select.innerHTML = clients.map(c => `<option value="${c.user_id}">${c.user_id} (${c.status})</option>`).join('');
+                
+                let optionsHtml = '<option value="ALL">🌐 All Terminals (Broadcast)</option>';
+                optionsHtml += clients.map(c => `<option value="${c.user_id}">${c.user_id} (${c.status})</option>`).join('');
+                select.innerHTML = optionsHtml;
+                
                 clients.forEach(c => clientStatuses[c.user_id] = c.status);
                 updateBanButton();
                 loadClientData();
             }
             function updateBanButton() {
                 const clientId = document.getElementById('client-select').value;
-                const status = clientStatuses[clientId] || 'active';
                 const btn = document.getElementById('ban-btn');
+                if (clientId === 'ALL') {
+                    btn.style.display = 'none';
+                    return;
+                }
+                btn.style.display = 'inline-block';
+                const status = clientStatuses[clientId] || 'active';
                 if (status === 'banned') {
                     btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-700 hover:bg-emerald-600 text-white transition";
                     btn.innerText = "Unban Client";
@@ -251,6 +284,7 @@ async def admin_dashboard():
             }
             async function toggleBanStatus() {
                 const clientId = document.getElementById('client-select').value;
+                if (clientId === 'ALL') return;
                 const newStatus = clientStatuses[clientId] === 'banned' ? 'active' : 'banned';
                 await fetch(`/api/client/status/${clientId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }) });
                 loadClients();
@@ -258,8 +292,12 @@ async def admin_dashboard():
             async function loadClientData() {
                 const clientId = document.getElementById('client-select').value;
                 updateBanButton();
-                document.getElementById('form-title').innerText = `Configuration for ${clientId}`;
-                const res = await fetch(`/api/config/${clientId}`);
+                if (clientId === 'ALL') {
+                    document.getElementById('form-title').innerText = 'Configuration for ALL Terminals (Broadcast Mode)';
+                } else {
+                    document.getElementById('form-title').innerText = `Configuration for ${clientId}`;
+                }
+                const res = await fetch(`/api/config/${clientId === 'ALL' ? 'pc_01' : clientId}`);
                 const data = await res.json();
                 document.getElementById('tabs-json').value = JSON.stringify(data.tabs, null, 4);
                 document.getElementById('allowed-commands').value = data.allowed_commands.join('\\n');
@@ -278,7 +316,7 @@ async def admin_dashboard():
                 const clientId = document.getElementById('client-select').value;
                 try {
                     const payload = {
-                        status: clientStatuses[clientId] || 'active',
+                        status: clientId === 'ALL' ? 'active' : (clientStatuses[clientId] || 'active'),
                         tabs: JSON.parse(document.getElementById('tabs-json').value),
                         allowed_commands: document.getElementById('allowed-commands').value.split('\\n').map(s => s.trim()).filter(Boolean),
                         admin_password: document.getElementById('admin-password').value
