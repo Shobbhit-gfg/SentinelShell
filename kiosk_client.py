@@ -177,10 +177,11 @@ class KioskWindow(QMainWindow):
 
         # Navigation Toolbar (Back, Forward, Refresh, URL display)
         toolbar = QWidget()
+        toolbar.setFixedHeight(30)
         toolbar.setStyleSheet("background-color: #18181b; border-bottom: 1px solid #27272a;")
         tb_layout = QHBoxLayout()
-        tb_layout.setContentsMargins(8, 4, 8, 4)
-        tb_layout.setSpacing(6)
+        tb_layout.setContentsMargins(6, 2, 6, 2)
+        tb_layout.setSpacing(4)
 
         back_btn = QPushButton("←")
         forward_btn = QPushButton("→")
