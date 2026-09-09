@@ -6,10 +6,10 @@ import keyboard
 from urllib.parse import urlparse
 from PyQt5.QtCore import Qt, QUrl, QTimer
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget, 
-                             QVBoxLayout, QInputDialog, QMessageBox, QLineEdit, QTextEdit)
+                             QVBoxLayout, QHBoxLayout, QPushButton, QInputDialog, 
+                             QMessageBox, QLineEdit, QTextEdit)
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage
 
-# --- CLOUD BACKEND CONFIGURATION ---
 SERVER_IP = "sentinelshell.onrender.com"
 API_BASE = f"https://{SERVER_IP}/api"
 
@@ -37,7 +37,7 @@ class WhitelistedWebPage(QWebEnginePage):
         if any(domain in url_str for domain in allowed_urls):
             return True
             
-        # 2. Allow subpages, encoding variants, helpers, or structural sub-services
+        # 2. Allow subpages, encoding variants, helpers, verifications, and auth redirects
         parsed_target = urlparse(url_str)
         target_domain = parsed_target.netloc.lower()
         
@@ -52,9 +52,15 @@ class WhitelistedWebPage(QWebEnginePage):
                     return True
                 if "codebeautify" in target_domain or "browserling" in target_domain:
                     return True
-                # Allow standard helper domains (Stripe scripts, Google Tag/Analytics pixels, Cloudflare, etc.)
-                if any(ext in target_domain for ext in ["stripe.com", "doubleclick.net", "googletagmanager.com", "cloudflare.com"]):
-                    return True
+                
+        # Allow standard helper, authentication, verification, and captcha domains globally across tools
+        verification_and_auth_domains = [
+            "stripe.com", "doubleclick.net", "googletagmanager.com", "cloudflare.com",
+            "google.com", "googleapis.com", "gstatic.com", "microsoftonline.com", 
+            "github.com", "recaptcha.net", "hcaptcha.com", "auth0.com"
+        ]
+        if any(ext in target_domain for ext in verification_and_auth_domains):
+            return True
 
         # Block and log unauthorized navigation if it doesn't match any rule
         print(f"Blocked navigation to: {url_str}")
@@ -164,11 +170,62 @@ class KioskWindow(QMainWindow):
                     self.add_web_tab(target_url, tab_name)
 
     def add_web_tab(self, url, title):
+        container = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Navigation Toolbar (Back, Forward, Refresh, URL display)
+        toolbar = QWidget()
+        toolbar.setStyleSheet("background-color: #18181b; border-bottom: 1px solid #27272a;")
+        tb_layout = QHBoxLayout()
+        tb_layout.setContentsMargins(8, 4, 8, 4)
+        tb_layout.setSpacing(6)
+
+        back_btn = QPushButton("←")
+        forward_btn = QPushButton("→")
+        reload_btn = QPushButton("⟳")
+        
+        btn_style = """
+            QPushButton {
+                background-color: #27272a; color: #a1a1aa; border: none; 
+                border-radius: 4px; font-weight: bold; font-size: 13px; padding: 4px 8px;
+            }
+            QPushButton:hover { background-color: #3f3f46; color: #ffffff; }
+        """
+        for btn in [back_btn, forward_btn, reload_btn]:
+            btn.setStyleSheet(btn_style)
+            btn.setFixedWidth(32)
+
+        url_bar = QLineEdit()
+        url_bar.setReadOnly(True)
+        url_bar.setStyleSheet("""
+            background-color: #09090b; color: #71717a; border: 1px solid #27272a; 
+            border-radius: 4px; padding: 4px 8px; font-size: 11px; font-family: monospace;
+        """)
+
+        tb_layout.addWidget(back_btn)
+        tb_layout.addWidget(forward_btn)
+        tb_layout.addWidget(reload_btn)
+        tb_layout.addWidget(url_bar)
+        toolbar.setLayout(tb_layout)
+
         browser = QWebEngineView()
         page = WhitelistedWebPage(self, browser.page().profile(), browser)
         browser.setPage(page)
         browser.setUrl(QUrl(url))
-        self.tabs.addTab(browser, title)
+
+        # Wire up navigation controls
+        back_btn.clicked.connect(browser.back)
+        forward_btn.clicked.connect(browser.forward)
+        reload_btn.clicked.connect(browser.reload)
+        browser.urlChanged.connect(lambda qurl: url_bar.setText(qurl.toString()))
+
+        layout.addWidget(toolbar)
+        layout.addWidget(browser)
+        container.setLayout(layout)
+
+        self.tabs.addTab(container, title)
 
     def add_terminal_tab(self, title):
         terminal = SandboxedTerminal(self)
@@ -215,7 +272,7 @@ class KioskWindow(QMainWindow):
                 requests.post(f"{API_BASE}/logs", json={"user_id": USER_ID, "event_type": "FAILED_EXIT", "details": "Invalid admin password attempt"}, timeout=3)
             except Exception:
                 pass
-            QMessageBox.critical(self, 'Access Denied', 'Security violation logged.')
+            QMessageBox.initial = QMessageBox.critical(self, 'Access Denied', 'Security violation logged.')
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
