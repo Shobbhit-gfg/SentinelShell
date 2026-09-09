@@ -6,6 +6,7 @@ import uvicorn
 import datetime
 import sqlite3
 import json
+import os
 
 app = FastAPI(title="SentinelShell Fleet Manager")
 
@@ -36,9 +37,31 @@ def init_db():
     cursor.execute("SELECT COUNT(*) FROM configs")
     if cursor.fetchone()[0] == 0:
         default_tabs = [
-            {"name": "Wikipedia", "type": "url", "value": "https://en.wikipedia.org"},
-            {"name": "Python Docs", "type": "url", "value": "https://python.org"},
-            {"name": "Terminal", "type": "terminal", "value": ""}
+            {
+                "name": "Base64Decode",
+                "type": "url",
+                "value": "https://www.base64decode.org/"
+            },
+            {
+                "name": "HexToIP Browserling",
+                "type": "url",
+                "value": "https://www.browserling.com/tools/hex-to-ip"
+            },
+            {
+                "name": "HexToIP CodeBeautify",
+                "type": "url",
+                "value": "https://codebeautify.org/hex-to-ip-converter"
+            },
+            {
+                "name": "Rulebook",
+                "type": "pdf",
+                "value": "Photography_and_Filming_Club_Rulebook.pdf"
+            },
+            {
+                "name": "Terminal",
+                "type": "terminal",
+                "value": ""
+            }
         ]
         default_commands = ["ping 8.8.8.8", "ipconfig", "ifconfig"]
         cursor.execute("INSERT INTO configs VALUES (?, ?, ?, ?, ?)", (
@@ -285,4 +308,5 @@ async def admin_dashboard():
     </html>"""
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
