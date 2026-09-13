@@ -1,23 +1,23 @@
+import os
+import psycopg2
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import uvicorn
 import datetime
-import sqlite3
 import json
-import os
 
 app = FastAPI(title="SentinelShell Fleet Manager")
 
-DB_FILE = "sentinel.db"
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL)
 
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Enable Write-Ahead Logging (WAL) to handle high concurrent writes from 40-60 active users
-    cursor.execute("PRAGMA journal_mode=WAL;")
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS configs (
@@ -30,7 +30,7 @@ def init_db():
     ''')
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             timestamp TEXT,
             user_id TEXT,
             event_type TEXT,
@@ -65,7 +65,7 @@ def init_db():
             ]
         ]
         default_commands = ["ping 8.8.8.8", "ipconfig", "ifconfig"]
-        cursor.execute("INSERT INTO configs VALUES (?, ?, ?, ?, ?)", (
+        cursor.execute("INSERT INTO configs VALUES (%s, %s, %s, %s, %s)", (
             "pc_01",
             "active",
             json.dumps(default_tabs),
@@ -73,6 +73,7 @@ def init_db():
             "123"
         ))
     conn.commit()
+    cursor.close()
     conn.close()
 
 init_db()
@@ -91,9 +92,9 @@ class ConfigUpdate(BaseModel):
 
 @app.get("/api/config/{user_id}")
 async def get_config(user_id: str):
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT status, tabs, allowed_commands, admin_password FROM configs WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT status, tabs, allowed_commands, admin_password FROM configs WHERE user_id = %s", (user_id,))
     row = cursor.fetchone()
     
     if not row:
@@ -101,10 +102,11 @@ async def get_config(user_id: str):
         cursor.execute("SELECT status, tabs, allowed_commands, admin_password FROM configs LIMIT 1")
         row = cursor.fetchone()
         if row:
-            cursor.execute("INSERT INTO configs VALUES (?, ?, ?, ?, ?)", (user_id, "active", row[1], row[2], row[3]))
+            cursor.execute("INSERT INTO configs VALUES (%s, %s, %s, %s, %s)", (user_id, "active", row[1], row[2], row[3]))
             conn.commit()
             row = ("active", row[1], row[2], row[3])
             
+    cursor.close()
     conn.close()
     
     if not row:
@@ -131,12 +133,12 @@ async def get_config(user_id: str):
 
 @app.put("/api/config/{user_id}")
 async def update_config(user_id: str, new_config: ConfigUpdate):
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     if user_id == "ALL":
         cursor.execute('''
-            UPDATE configs SET tabs = ?, allowed_commands = ?, admin_password = ?
+            UPDATE configs SET tabs = %s, allowed_commands = %s, admin_password = %s
         ''', (
             json.dumps(new_config.tabs),
             json.dumps(new_config.allowed_commands),
@@ -144,8 +146,13 @@ async def update_config(user_id: str, new_config: ConfigUpdate):
         ))
     else:
         cursor.execute('''
-            INSERT OR REPLACE INTO configs (user_id, status, tabs, allowed_commands, admin_password)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO configs (user_id, status, tabs, allowed_commands, admin_password)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE SET 
+                status = EXCLUDED.status,
+                tabs = EXCLUDED.tabs,
+                allowed_commands = EXCLUDED.allowed_commands,
+                admin_password = EXCLUDED.admin_password
         ''', (
             user_id,
             new_config.status,
@@ -155,56 +162,61 @@ async def update_config(user_id: str, new_config: ConfigUpdate):
         ))
         
     conn.commit()
+    cursor.close()
     conn.close()
     return {"status": "success", "message": f"Configuration for {user_id} updated successfully"}
 
 @app.post("/api/client/status/{user_id}")
 async def set_client_status(user_id: str, data: dict):
     new_status = data.get("status")
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     if user_id == "ALL":
-        cursor.execute("UPDATE configs SET status = ?", (new_status,))
+        cursor.execute("UPDATE configs SET status = %s", (new_status,))
     else:
-        cursor.execute("UPDATE configs SET status = ? WHERE user_id = ?", (new_status, user_id))
+        cursor.execute("UPDATE configs SET status = %s WHERE user_id = %s", (new_status, user_id))
     conn.commit()
+    cursor.close()
     conn.close()
     return {"status": "success", "client": user_id, "new_status": new_status}
 
 @app.post("/api/logs")
 async def receive_log(log: SecurityLog):
     timestamp = datetime.datetime.utcnow().isoformat()
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO logs (timestamp, user_id, event_type, details) VALUES (?, ?, ?, ?)",
+    cursor.execute("INSERT INTO logs (timestamp, user_id, event_type, details) VALUES (%s, %s, %s, %s)",
                    (timestamp, log.user_id, log.event_type, log.details))
     
-    # Prune old logs to prevent unbounded growth during continuous 6-hour sessions
+    # Prune old logs to keep latest 2000 rows
     cursor.execute("DELETE FROM logs WHERE id NOT IN (SELECT id FROM logs ORDER BY id DESC LIMIT 2000)")
     
     conn.commit()
+    cursor.close()
     conn.close()
     print(f"[SECURITY ALERT] {timestamp} | {log.user_id} | {log.event_type} | {log.details}")
     return {"status": "logged"}
 
 @app.get("/api/logs")
 async def get_logs(user_id: Optional[str] = None):
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     if user_id and user_id != "ALL":
-        cursor.execute("SELECT timestamp, user_id, event_type, details FROM logs WHERE user_id = ? ORDER BY id DESC LIMIT 100", (user_id,))
+        cursor.execute("SELECT timestamp, user_id, event_type, details FROM logs WHERE user_id = %s ORDER BY id DESC LIMIT 100", (user_id,))
     else:
         cursor.execute("SELECT timestamp, user_id, event_type, details FROM logs ORDER BY id DESC LIMIT 100")
     rows = cursor.fetchall()
+    cursor.close()
     conn.close()
     return [{"timestamp": r[0], "user_id": r[1], "event_type": r[2], "details": r[3]} for r in rows]
 
 @app.get("/api/clients")
 async def get_clients():
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT user_id, status FROM configs")
     rows = cursor.fetchall()
+    cursor.close()
     conn.close()
     return [{"user_id": r[0], "status": r[1]} for r in rows]
 
