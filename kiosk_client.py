@@ -1,13 +1,14 @@
 import sys
 import os
+import random
 import requests
 import subprocess
 import keyboard
 from urllib.parse import urlparse
 from PyQt5.QtCore import Qt, QUrl, QTimer
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget, 
-                             QVBoxLayout, QHBoxLayout, QPushButton, QInputDialog, 
-                             QMessageBox, QLineEdit, QTextEdit)
+                            QVBoxLayout, QHBoxLayout, QPushButton, QInputDialog, 
+                            QMessageBox, QLineEdit, QTextEdit)
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage
 
 SERVER_IP = "sentinelshell.onrender.com"
@@ -124,7 +125,11 @@ class KioskWindow(QMainWindow):
         
         self.sync_timer = QTimer(self)
         self.sync_timer.timeout.connect(self.fetch_latest_config)
-        self.sync_timer.start(10000)
+        
+        # Add random jitter (-1s to +2s) to prevent thundering herd effect across 40-60 concurrent terminals
+        base_interval = 10000
+        jitter = random.randint(-1000, 2000)
+        self.sync_timer.start(base_interval + jitter)
 
     def init_ui(self):
         self.setWindowTitle("SentinelShell Kiosk")
@@ -273,7 +278,7 @@ class KioskWindow(QMainWindow):
                 requests.post(f"{API_BASE}/logs", json={"user_id": USER_ID, "event_type": "FAILED_EXIT", "details": "Invalid admin password attempt"}, timeout=3)
             except Exception:
                 pass
-            QMessageBox.initial = QMessageBox.critical(self, 'Access Denied', 'Security violation logged.')
+            QMessageBox.critical(self, 'Access Denied', 'Security violation logged.')
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

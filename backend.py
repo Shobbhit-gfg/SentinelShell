@@ -15,6 +15,10 @@ DB_FILE = "sentinel.db"
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
+    
+    # Enable Write-Ahead Logging (WAL) to handle high concurrent writes from 40-60 active users
+    cursor.execute("PRAGMA journal_mode=WAL;")
+    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS configs (
             user_id TEXT PRIMARY KEY,
@@ -37,31 +41,28 @@ def init_db():
     cursor.execute("SELECT COUNT(*) FROM configs")
     if cursor.fetchone()[0] == 0:
         default_tabs = [
-            {
-                "name": "Base64Decode",
-                "type": "url",
-                "value": "https://www.base64decode.org/"
-            },
-            {
-                "name": "HexToIP Browserling",
-                "type": "url",
-                "value": "https://www.browserling.com/tools/hex-to-ip"
-            },
-            {
-                "name": "HexToIP CodeBeautify",
-                "type": "url",
-                "value": "https://codebeautify.org/hex-to-ip-converter"
-            },
-            {
-                "name": "Rulebook",
-                "type": "pdf",
-                "value": "Photography_and_Filming_Club_Rulebook.pdf"
-            },
-            {
-                "name": "Terminal",
-                "type": "terminal",
-                "value": ""
-            }
+            [
+                {
+                    "name": "Base64Decode",
+                    "type": "url",
+                    "value": "https://www.base64decode.org/"
+                },
+                {
+                    "name": "HexToIP Browserling",
+                    "type": "url",
+                    "value": "https://www.browserling.com/tools/hex-to-ip"
+                },
+                {
+                    "name": "HexToIP CodeBeautify",
+                    "type": "url",
+                    "value": "https://codebeautify.org/hex-to-ip-converter"
+                },
+                {
+                    "name": "explainshell",
+                    "type": "url",
+                    "value": "https://explainshell.com/"
+                }
+            ]
         ]
         default_commands = ["ping 8.8.8.8", "ipconfig", "ifconfig"]
         cursor.execute("INSERT INTO configs VALUES (?, ?, ?, ?, ?)", (
@@ -177,6 +178,10 @@ async def receive_log(log: SecurityLog):
     cursor = conn.cursor()
     cursor.execute("INSERT INTO logs (timestamp, user_id, event_type, details) VALUES (?, ?, ?, ?)",
                    (timestamp, log.user_id, log.event_type, log.details))
+    
+    # Prune old logs to prevent unbounded growth during continuous 6-hour sessions
+    cursor.execute("DELETE FROM logs WHERE id NOT IN (SELECT id FROM logs ORDER BY id DESC LIMIT 2000)")
+    
     conn.commit()
     conn.close()
     print(f"[SECURITY ALERT] {timestamp} | {log.user_id} | {log.event_type} | {log.details}")
